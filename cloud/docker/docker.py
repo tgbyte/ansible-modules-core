@@ -1852,7 +1852,7 @@ def main():
             volumes_from    = dict(default=None, type='list'),
             links           = dict(default=None, type='list'),
             devices         = dict(default=None, type='list'),
-            memory_limit    = dict(default=0, type='int'),
+            memory_limit    = dict(default=0),
             memory_swap     = dict(default=0, type='int'),
             cpu_shares      = dict(default=0, type='int'),
             docker_url      = dict(),
