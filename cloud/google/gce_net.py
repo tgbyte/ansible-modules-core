@@ -40,7 +40,7 @@ options:
   ipv4_range:
     description:
       - the IPv4 address range in CIDR notation for the network
-        this parameter is not mandatory when you specified existing network in name parameter, but when you create new network, this parameter is mandatory
+        this parameter is not mandatory when you specified existing network in name parameter, but when you create new network, this parameter is mandatory if using legacy mode
     required: false
     aliases: ['cidr']
   fwname:
@@ -54,6 +54,13 @@ options:
       - name of the network
     required: false
     default: null
+    aliases: []
+  mode:
+    version_added: "2.2.0"
+    description:
+      - network mode (auto or legacy)
+    required: false
+    default: legacy
     aliases: []
   src_range:
     description:
@@ -113,7 +120,7 @@ options:
 
 requirements:
     - "python >= 2.6"
-    - "apache-libcloud >= 0.13.3, >= 0.17.0 if using JSON credentials"
+    - "apache-libcloud >= 0.13.3, >= 0.17.0 if using JSON credentials, >= 1.0.0 if using automatic subnetwork configuration"
 author: "Eric Johnson (@erjohnso) <erjohnso@google.com>"
 '''
 
@@ -180,6 +187,7 @@ def main():
             ipv4_range = dict(),
             fwname = dict(),
             name = dict(),
+            mode = dict(default='legacy'),
             src_range = dict(type='list'),
             src_tags = dict(type='list'),
             target_tags = dict(type='list'),
@@ -200,6 +208,7 @@ def main():
     ipv4_range = module.params.get('ipv4_range')
     fwname = module.params.get('fwname')
     name = module.params.get('name')
+    mode = module.params.get('mode')
     src_range = module.params.get('src_range')
     src_tags = module.params.get('src_tags')
     target_tags = module.params.get('target_tags')
@@ -221,12 +230,22 @@ def main():
 
         # user wants to create a new network that doesn't yet exist
         if name and not network:
-            if not ipv4_range:
-                module.fail_json(msg="Network '" + name + "' is not found. To create network, 'ipv4_range' parameter is required",
+            if not ipv4_range and mode == 'legacy':
+                module.fail_json(msg="Network '" + name + "' is not found. To create network in legacy mode, 'ipv4_range' parameter is required",
                     changed=False)
 
             try:
-                network = gce.ex_create_network(name, ipv4_range)
+                if mode != 'legacy':
+                    import inspect
+
+                    args = inspect.getargspec(gce.ex_create_network)
+                    if not 'mode' in args.args:
+                        module.fail_json(msg='libcloud >= 1.0.0 is required for setting the network mode')
+
+                    network = gce.ex_create_network(name, ipv4_range, None, mode)
+                else:
+                    network = gce.ex_create_network(name, ipv4_range)
+
                 json_output['name'] = name
                 json_output['ipv4_range'] = ipv4_range
                 changed = True
